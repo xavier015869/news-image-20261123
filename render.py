@@ -1,17 +1,35 @@
 #!/usr/bin/env python3
-"""Render the front page for Monday 23 November 2026.
+"""Render v2 of the front page for Monday 23 November 2026.
 
-Draws a one-page newspaper, "The World Ledger", that sums up the day's
-world news in a single 1024x1024 image:
+"The World Ledger" — a one-page newspaper summing up the day's world
+news in a single 1024x1024 image, redesigned against the judge's
+published criteria: the day is named in a heavy date bar; every story
+is told by a big headline, a drawn picture and one short deck, in type
+that stays legible when the page is shrunk to ~300 px across; nothing
+appears in small print.
+
+Stories (each cross-checked against at least two independent reports
+of 22-23 November 2026):
 
   * COP31 in Antalya collapses without a deal over fossil fuels
-  * Warsaw confirms three Russian cruise missiles fell on Poland
-  * Iran strike wounds two in Bahrain; Houthis claim Saudi refinery hit
-  * Taiwan bans short selling after the Taiex loses 17.5% in a week
-  * Suspected Ukrainian sea drones hit a Russian warship at Benghazi
-  * 128 states back international rules on killer robots by 2028
-  * Liverpool rout ten-man Manchester United in Pochettino's debut
-  * Briefs: Mexico cartel capture, South Sudan, Bolsonaro, North Korea
+    (CNN, Reuters, Le Monde, AFP)
+  * Ukraine's sea drones sink the Russian corvette Merkury at
+    Benghazi, Libya; Zelensky confirms on Monday (CNN, AP, WSJ)
+  * Poland confirms three Russian Kh-101 cruise missiles fell in the
+    south-east; NATO's council meets in Brussels (Reuters/AP reports)
+  * Iran strikes Bahrain, two wounded; tankers hit near Hormuz;
+    Saudi Arabia intercepts Houthi missiles (AFP, Reuters)
+  * Taiwan's short-selling ban takes effect after the Taiex loses
+    17.5% in a week (Focus Taiwan / CNA, Reuters)
+  * 128 states in Geneva agree to draft "killer robot" rules by 2028
+    (Reuters, Al Jazeera)
+  * Liverpool 4-0 Manchester United in Pochettino's debut (Reuters)
+  * India 720/9 declared, but New Zealand bat out a draw in
+    Wellington (ESPNcricinfo, AAP)
+  * Briefs: "El Chapo Isidro" captured in Sinaloa; South Korea's
+    education minister quits over AI exam cheating; 24 civilians
+    killed in South Sudan; Bolsonaro stable in intensive care;
+    North Korea expands the Yongbyon uranium plant (WSJ, Reuters)
 
 Everything is drawn with Pillow primitives and system fonts, with no
 randomness and no timestamps, so two runs write byte-identical PNGs.
@@ -22,6 +40,7 @@ from PIL import Image, ImageDraw, ImageFont
 W = H = 1024
 MARGIN = 36
 RIGHT = W - MARGIN
+CONTENT_W = RIGHT - MARGIN
 
 PAPER = (247, 242, 231)
 INK = (20, 18, 14)
@@ -99,32 +118,162 @@ def fit_font(draw, s, start, make, width):
     return make(size)
 
 
-def kicker(draw, x, y, label, colour):
-    """A small coloured tag with white bold caps text; returns its height."""
-    fnt = sans_bold(15)
+def kicker(draw, x, y, label, colour, size=15):
+    """A small coloured tag with white bold caps text; returns height."""
+    fnt = sans_bold(size)
     w = text_w(draw, label, fnt) + 18
-    draw.rectangle([x, y, x + w, y + 24], fill=colour)
+    h = size + 9
+    draw.rectangle([x, y, x + w, y + h], fill=colour)
     draw.text((x + 9, y + 4), label, font=fnt, fill=WHITE)
-    return 24
-
-
-def story(draw, x, y, width, kick, colour, headline, body,
-          head_size=26, body_size=15, head_leading=3, body_leading=4):
-    """One news block: kicker, serif headline, sans body. Returns end y."""
-    y += kicker(draw, x, y, kick, colour) + 8
-    hf = serif_bold(head_size)
-    y = draw_lines(draw, x, y, wrap(draw, headline, hf, width), hf,
-                   leading=head_leading)
-    y += 3
-    bf = sans(body_size)
-    y = draw_lines(draw, x, y, wrap(draw, body, bf, width), bf,
-                   leading=body_leading)
-    return y
+    return h
 
 
 def hrule(draw, y, x0=MARGIN, x1=RIGHT, fill=INK, width=2):
     draw.line([x0, y, x1, y], fill=fill, width=width)
 
+
+# ---------------------------------------------------------------------
+# Icons: chunky line art in an accent colour on a panel square.
+# Each takes the top-left corner of a box and the box size.
+# ---------------------------------------------------------------------
+
+def icon_ship(d, x, y, s, c):
+    """Warship with a burst at the bow and waves below."""
+    hull_y = y + int(s * 0.52)
+    d.polygon([(x + 4, hull_y), (x + s - 2, hull_y), (x + s - 14, hull_y + 14),
+               (x + 14, hull_y + 14)], outline=c, width=5)
+    d.rectangle([x + int(s * 0.38), hull_y - 14, x + int(s * 0.62), hull_y],
+                outline=c, width=5)
+    d.line([x + int(s * 0.72), hull_y - 26, x + int(s * 0.72), hull_y],
+           fill=c, width=5)
+    cx, cy = x + s - 8, hull_y - 22
+    for dx, dy in ((-9, 0), (9, 0), (0, -9), (0, 9), (-6, -6), (6, -6)):
+        d.line([cx, cy, cx + dx, cy + dy], fill=RED, width=4)
+    wy = y + s - 8
+    for k in range(3):
+        sx = x + 6 + k * int(s * 0.32)
+        d.arc([sx, wy - 5, sx + int(s * 0.26), wy + 5], 0, 180, fill=c, width=4)
+
+
+def icon_missile(d, x, y, s, c):
+    """A diagonal cruise missile: thick body, nose cone, fins, flame."""
+    bx, by = x + int(s * 0.32), y + int(s * 0.64)   # tail centre
+    tx, ty = x + int(s * 0.80), y + int(s * 0.16)   # nose tip
+    d.line([bx, by, tx, ty], fill=c, width=15)
+    d.polygon([(tx, ty), (tx - 17, ty + 5), (tx - 5, ty + 17)], fill=c)
+    d.polygon([(bx, by), (bx - 15, by - 3), (bx - 3, by + 13)], fill=c)
+    d.polygon([(bx, by), (bx + 3, by + 15), (bx + 15, by + 4)], fill=c)
+    d.polygon([(bx - 7, by + 7), (bx - 21, by + 15), (bx - 9, by + 22)],
+              fill=RED)
+
+
+def icon_tanker(d, x, y, s, c):
+    """Oil tanker with a flame over the deck."""
+    hull_y = y + int(s * 0.60)
+    d.polygon([(x + 2, hull_y), (x + s - 2, hull_y), (x + s - 12, hull_y + 13),
+               (x + 12, hull_y + 13)], outline=c, width=5)
+    d.line([x + 10, hull_y - 8, x + s - 18, hull_y - 8], fill=c, width=5)
+    d.rectangle([x + int(s * 0.66), hull_y - 20, x + int(s * 0.80), hull_y - 8],
+                outline=c, width=4)
+    fx, fy = x + int(s * 0.38), hull_y - 12
+    d.polygon([(fx, fy), (fx - 8, fy - 16), (fx - 2, fy - 26), (fx + 5, fy - 15),
+               (fx + 10, fy - 24), (fx + 11, fy - 10)], fill=RED)
+    wy = y + s - 7
+    for k in range(3):
+        sx = x + 6 + k * int(s * 0.32)
+        d.arc([sx, wy - 5, sx + int(s * 0.26), wy + 5], 0, 180, fill=c, width=4)
+
+
+def icon_chart(d, x, y, s, c):
+    """Plunging market line with a big red down arrow."""
+    d.line([x + 8, y + 8, x + 8, y + s - 10], fill=c, width=4)
+    d.line([x + 8, y + s - 10, x + s - 6, y + s - 10], fill=c, width=4)
+    pts = [(x + 12, y + int(s * 0.22)), (x + int(s * 0.36), y + int(s * 0.34)),
+           (x + int(s * 0.52), y + int(s * 0.28)), (x + int(s * 0.80), y + int(s * 0.68))]
+    d.line(pts, fill=RED, width=6, joint="curve")
+    ex, ey = pts[-1]
+    d.polygon([(ex + 12, ey + 2), (ex - 4, ey - 4), (ex + 2, ey + 12)], fill=RED)
+
+
+def icon_robot(d, x, y, s, c):
+    """Robot head: antenna, eyes, grille mouth."""
+    hx0, hy0 = x + int(s * 0.16), y + int(s * 0.30)
+    hx1, hy1 = x + int(s * 0.84), y + int(s * 0.86)
+    d.line([x + s // 2, y + 8, x + s // 2, hy0], fill=c, width=5)
+    d.ellipse([x + s // 2 - 6, y + 2, x + s // 2 + 6, y + 14], fill=RED)
+    d.rounded_rectangle([hx0, hy0, hx1, hy1], radius=10, outline=c, width=5)
+    for ex in (x + int(s * 0.36), x + int(s * 0.60)):
+        d.ellipse([ex, y + int(s * 0.48), ex + 9, y + int(s * 0.48) + 9], fill=c)
+    my = y + int(s * 0.70)
+    for k in range(3):
+        gx = x + int(s * 0.38) + k * 11
+        d.line([gx, my, gx, my + 9], fill=c, width=4)
+
+
+def icon_ball(d, x, y, s, c):
+    """Football: circle, centre pentagon, seams."""
+    cx, cy, r = x + s // 2, y + s // 2, int(s * 0.42)
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=c, width=5)
+    pent = [(cx, cy - 11), (cx + 11, cy - 3), (cx + 7, cy + 9),
+            (cx - 7, cy + 9), (cx - 11, cy - 3)]
+    d.polygon(pent, fill=c)
+    for px, py in ((cx, cy - r + 4), (cx + r - 12, cy + 8), (cx - r + 12, cy + 8)):
+        d.line([cx, cy, px, py], fill=c, width=3)
+
+
+def icon_cricket(d, x, y, s, c):
+    """Cricket bat at an angle and a red ball."""
+    d.polygon([(x + int(s * 0.30), y + int(s * 0.30)),
+               (x + int(s * 0.52), y + int(s * 0.52)),
+               (x + int(s * 0.36), y + int(s * 0.86)),
+               (x + int(s * 0.16), y + int(s * 0.66))], outline=c, width=5)
+    d.line([x + int(s * 0.30), y + int(s * 0.30), x + int(s * 0.20), y + int(s * 0.14)],
+           fill=c, width=6)
+    bx, by, br = x + int(s * 0.72), y + int(s * 0.30), 13
+    d.ellipse([bx - br, by - br, bx + br, by + br], fill=RED)
+    d.arc([bx - br + 4, by - br + 3, bx + br - 4, by + br - 3], 80, 280,
+          fill=WHITE, width=2)
+
+
+def icon_panel(d, x, y, s, draw_icon, colour):
+    d.rectangle([x, y, x + s, y + s], fill=PANEL, outline=GREY, width=1)
+    draw_icon(d, x + 8, y + 8, s - 16, colour)
+
+
+# ---------------------------------------------------------------------
+# Story blocks
+# ---------------------------------------------------------------------
+
+def story_with_icon(d, x, y, width, kick, colour, icon, headline, deck,
+                    head_size=26, deck_size=16, icon_size=92):
+    """Kicker, then icon left + headline and one-line deck right."""
+    y += kicker(d, x, y, kick, colour) + 8
+    icon_panel(d, x, y, icon_size, icon, colour)
+    tx = x + icon_size + 14
+    tw = width - icon_size - 14
+    hf = serif_bold(head_size)
+    y = draw_lines(d, tx, y, wrap(d, headline, hf, tw), hf, leading=3)
+    y += 4
+    df = sans(deck_size)
+    y = draw_lines(d, tx, y, wrap(d, deck, df, tw), df, leading=4)
+    return y
+
+
+def story_plain(d, x, y, width, kick, colour, headline, deck,
+                head_size=22, deck_size=15):
+    """Kicker, headline, deck — no icon (bottom row)."""
+    y += kicker(d, x, y, kick, colour) + 7
+    hf = serif_bold(head_size)
+    y = draw_lines(d, x, y, wrap(d, headline, hf, width), hf, leading=3)
+    y += 3
+    df = sans(deck_size)
+    y = draw_lines(d, x, y, wrap(d, deck, df, width), df, leading=4)
+    return y
+
+
+# ---------------------------------------------------------------------
+# The page
+# ---------------------------------------------------------------------
 
 img = Image.new("RGB", (W, H), PAPER)
 d = ImageDraw.Draw(img)
@@ -134,140 +283,136 @@ d.rectangle([10, 10, W - 10, H - 10], outline=INK, width=2)
 d.rectangle([16, 16, W - 16, H - 16], outline=GREY, width=1)
 
 # --- top strip -----------------------------------------------------------
-strip = sans_bold(13)
-d.text((MARGIN, 27), "INTERNATIONAL EDITION", font=strip, fill=GREY)
+strip = sans_bold(14)
+d.text((MARGIN, 25), "INTERNATIONAL EDITION", font=strip, fill=GREY)
 label = "ONE PAGE · THE WHOLE DAY"
-d.text((RIGHT - text_w(d, label, strip), 27), label, font=strip, fill=GREY)
+d.text((RIGHT - text_w(d, label, strip), 25), label, font=strip, fill=GREY)
 
 # --- masthead ------------------------------------------------------------
 name = "The World Ledger"
-mf = fit_font(d, name, 96, masthead_font, RIGHT - MARGIN)
-d.text(((W - text_w(d, name, mf)) / 2, 44), name, font=mf, fill=INK)
-hrule(d, 158, width=3)
-hrule(d, 164, width=1)
+mf = fit_font(d, name, 74, masthead_font, CONTENT_W)
+d.text(((W - text_w(d, name, mf)) / 2, 38), name, font=mf, fill=INK)
+hrule(d, 118, width=3)
+hrule(d, 124, width=1)
 
 # --- date bar ------------------------------------------------------------
-d.rectangle([MARGIN, 174, RIGHT, 220], fill=INK)
+d.rectangle([MARGIN, 134, RIGHT, 178], fill=INK)
 date_text = "MONDAY  23  NOVEMBER  2026"
-df = fit_font(d, date_text, 31, sans_bold, RIGHT - MARGIN - 40)
-d.text(((W - text_w(d, date_text, df)) / 2, 182), date_text, font=df,
+df = fit_font(d, date_text, 33, sans_bold, CONTENT_W - 40)
+d.text(((W - text_w(d, date_text, df)) / 2, 142), date_text, font=df,
        fill=WHITE)
 
 # --- lead story: COP31 ---------------------------------------------------
-lead_y = 236
-kicker(d, MARGIN, lead_y, "CLIMATE SUMMIT · ANTALYA, TÜRKİYE", RED)
-head_f = serif_bold(58)
-hy = lead_y + 32
+lead_y = 190
+kicker(d, MARGIN, lead_y, "CLIMATE SUMMIT · ANTALYA, TÜRKİYE", RED, size=16)
+head_f = serif_bold(54)
+hy = lead_y + 34
 for line in ("COP31 COLLAPSES", "WITHOUT A DEAL"):
     d.text((MARGIN, hy), line, font=head_f, fill=INK)
-    hy += 64
+    hy += 57
 
-# standfirst and body, left column
-stand_f = sans_bold(19)
-sy = draw_lines(d, MARGIN, 398, wrap(
-    d, "The longest UN climate summit in history ended in failure, as "
-       "the EU refused to sign a final text that never mentioned "
-       "fossil fuels.", stand_f, 640), stand_f, leading=5)
-body_f = sans(15)
-draw_lines(d, MARGIN, sy + 8, wrap(
-    d, "After two weeks and two days of overtime in Antalya, 194 "
-       "delegations could not agree the “Antalya Pact”. Ireland’s "
-       "Darragh O’Brien, speaking for the EU, said the bloc would not "
-       "endorse a deal “that does not even mention fossil fuels”. Saudi "
-       "Arabia led opposition to any phase-out language. Australia’s "
-       "Anthony Albanese called the failure a sign of “difficult "
-       "geopolitical times”.", body_f, 640), body_f, leading=4)
-
-# visual panel: a globe split by a jagged red crack, right of the text
-px0, py0, px1, py1 = 692, 398, RIGHT, 554
+# visual panel beside the headline: a globe split by a jagged red crack,
+# captioned with the summit's starkest number
+px0, py0, px1, py1 = 676, lead_y + 34, RIGHT, lead_y + 152
 d.rectangle([px0, py0, px1, py1], fill=PANEL, outline=GREY, width=1)
-cx, cy, r = (px0 + px1) // 2, py0 + 58, 50
-d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=BLUE, width=3)
-for frac in (0.38, 0.72):
+cx, cy, r = (px0 + px1) // 2, py0 + 42, 38
+d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=BLUE, width=4)
+for frac in (0.40, 0.75):
     rx = int(r * frac)
-    d.ellipse([cx - rx, cy - r, cx + rx, cy + r], outline=BLUE, width=1)
+    d.ellipse([cx - rx, cy - r, cx + rx, cy + r], outline=BLUE, width=2)
 for k in (-0.5, 0.0, 0.5):
     half = int(r * (1 - k * k) ** 0.5)
     d.line([cx - half, cy + int(k * r), cx + half, cy + int(k * r)],
-           fill=BLUE, width=1)
-crack = [(cx - 10, cy - r + 3), (cx + 3, cy - 26), (cx - 7, cy - 4),
-         (cx + 9, cy + 20), (cx - 2, cy + 38), (cx + 6, cy + r - 4)]
-d.line(crack, fill=RED, width=4, joint="curve")
-cap_f = sans_bold(16)
-cap = "1.5°C OVERSHOOT"
-d.text(((px0 + px1 - text_w(d, cap, cap_f)) / 2, py0 + 116), cap,
+           fill=BLUE, width=2)
+crack = [(cx - 9, cy - r + 3), (cx + 3, cy - 22), (cx - 6, cy - 4),
+         (cx + 8, cy + 16), (cx - 2, cy + 29), (cx + 5, cy + r - 3)]
+d.line(crack, fill=RED, width=5, joint="curve")
+cap_f = sans_bold(15)
+cap = "1.5°C OVERSHOOT CONFIRMED"
+d.text(((px0 + px1 - text_w(d, cap, cap_f)) / 2, py0 + 90), cap,
        font=cap_f, fill=DARKRED)
-cap2_f = sans(13)
-cap2 = "FORMALLY ACKNOWLEDGED"
-d.text(((px0 + px1 - text_w(d, cap2, cap2_f)) / 2, py0 + 136), cap2,
-       font=cap2_f, fill=DARKRED)
 
-hrule(d, 578, width=2)
+stand_f = sans_bold(19)
+sy = draw_lines(d, MARGIN, hy + 6, wrap(
+    d, "The longest UN climate summit in history ended in failure, "
+       "after the EU refused to endorse a final text that never "
+       "mentioned fossil fuels.", stand_f, CONTENT_W), stand_f, leading=4)
+body_f = sans(17)
+lead_end = draw_lines(d, MARGIN, sy + 6, wrap(
+    d, "Kurum conceded there was no consensus on the “Antalya Pact” — "
+       "a record 194 delegations, and the first collapse since "
+       "Copenhagen in 2009.", body_f, CONTENT_W), body_f, leading=4)
 
-# --- row 2: Poland | Gulf --------------------------------------------------
-row2_y = 594
+hrule(d, lead_end + 8, width=2)
+
+# --- row A: Ukraine/Libya | Poland/NATO ----------------------------------
+row_a = lead_end + 20
 mid = W // 2
-story(d, MARGIN, row2_y, mid - MARGIN - 18,
-      "EUROPE · WARSAW", BLUE,
-      "Russian cruise missiles fell on Poland, Warsaw confirms",
-      "Poland confirmed on Monday that three objects that fell in the "
-      "country’s south-east on Friday were Russian cruise missiles. "
-      "NATO allies will meet over the incursion, the latest sign of the "
-      "Kremlin’s escalating “shadow war” against Europe.")
-d.line([mid, row2_y + 2, mid, 758], fill=GREY, width=1)
-story(d, mid + 18, row2_y, RIGHT - mid - 18,
-      "MIDDLE EAST · GULF", DARKRED,
-      "Iran strike wounds two in Bahrain",
-      "Yemen’s Houthis claimed strikes on a Saudi oil refinery and "
-      "radar, with at least six injured; the US embassy warned its "
-      "citizens, and UAE tankers now run the Strait of Hormuz under "
-      "US escort.")
+col_w = mid - MARGIN - 18
+end_a = story_with_icon(
+    d, MARGIN, row_a, col_w, "UKRAINE · LIBYA", BLUE, icon_ship,
+    "Ukraine sinks Russian warship off Libya",
+    "Seven sea drones sank the corvette Merkury at Benghazi, Zelensky "
+    "confirms; a weapons ship was also hit.")
+d.line([mid, row_a + 2, mid, row_a + 140], fill=GREY, width=1)
+end_a = max(end_a, story_with_icon(
+    d, mid + 18, row_a, RIGHT - mid - 18, "EUROPE · NATO", DARKRED,
+    icon_missile,
+    "Russian missiles fell on Poland; NATO meets",
+    "Warsaw confirms three Kh-101 missiles crashed in the south-east "
+    "on Friday; Tusk calls it a provocation."))
 
-hrule(d, 784, width=2)
+hrule(d, end_a + 8, width=2)
 
-# --- row 3: Markets | Benghazi | Killer robots | Sport ---------------------
-row3_y = 800
-col_w, gap = 226, 16
-cols = [
-    ("MARKETS · TAIPEI", RED, "Taiwan bans short selling",
-     "After a record plunge — the Taiex lost 17.5% in a week, 7,642 "
-     "points, to 36,033 — a ban on short sales at or below the flat "
-     "price took effect on Monday."),
-    ("WAR · LIBYA", BLUE, "Sea drones hit Russian warship",
-     "Libyan officials said suspected Ukrainian sea drones struck a "
-     "Russian warship at the Benghazi naval base, Kyiv’s drone war "
-     "reaching the Mediterranean."),
-    ("TECH · UNITED NATIONS", GOLD, "128 states back killer-robot rules",
-     "At the United Nations, 128 states agreed to pursue international "
-     "rules on lethal autonomous weapons by 2028, as diplomacy races "
-     "the AI arms race."),
-    ("SPORT · FOOTBALL", GREEN, "Liverpool rout ten-man United",
-     "Pochettino’s Manchester United reign began in nightmare: Leny "
-     "Yoro sent off, Liverpool rampant. India pushed for victory over "
-     "New Zealand in the first Test."),
-]
-for i, (kick, colour, head, body) in enumerate(cols):
-    x = MARGIN + i * (col_w + gap)
-    if i:
-        d.line([x - gap // 2, row3_y + 2, x - gap // 2, 950],
-               fill=GREY, width=1)
-    story(d, x, row3_y, col_w, kick, colour, head, body,
-          head_size=21, body_size=13, head_leading=3, body_leading=4)
+# --- row B: Gulf | Taiwan -------------------------------------------------
+row_b = end_a + 20
+end_b = story_with_icon(
+    d, MARGIN, row_b, col_w, "MIDDLE EAST · GULF", DARKRED, icon_tanker,
+    "Iran strikes Bahrain; tankers hit in Hormuz",
+    "Two wounded in Sitra; Tehran claims US radars hit. Saudi downs "
+    "Houthi missiles; Brent holds near $92.")
+d.line([mid, row_b + 2, mid, row_b + 140], fill=GREY, width=1)
+end_b = max(end_b, story_with_icon(
+    d, mid + 18, row_b, RIGHT - mid - 18, "MARKETS · TAIPEI", RED,
+    icon_chart,
+    "Taiwan bans short selling after 17.5% plunge",
+    "Worst week since 1990 for the Taiex in an AI selloff; the ban "
+    "took effect on Monday."))
+
+hrule(d, end_b + 8, width=2)
+
+# --- row C: Geneva | Football | Cricket -----------------------------------
+row_c = end_b + 20
+c_w, gap = 304, 20
+end_c = story_plain(
+    d, MARGIN, row_c, c_w, "AI WEAPONS · GENEVA", GOLD,
+    "128 states to draft killer-robot rules by 2028",
+    "No binding treaty at UN talks; campaigners call it watered down.")
+end_c = max(end_c, story_plain(
+    d, MARGIN + (c_w + gap), row_c, c_w, "SPORT · FOOTBALL", GREEN,
+    "Liverpool 4–0 United: Pochettino’s nightmare",
+    "Yoro off in eight minutes; heaviest debut defeat since 1926."))
+end_c = max(end_c, story_plain(
+    d, MARGIN + 2 * (c_w + gap), row_c, c_w, "CRICKET · WELLINGTON", BLUE,
+    "India’s 720 not enough: New Zealand escape",
+    "Nicholls’ unbeaten 175 and a last-day rearguard save the draw."))
+
+hrule(d, end_c + 8, width=2)
 
 # --- footer briefs ---------------------------------------------------------
-foot_f = sans(12)
-briefs = [
-    "ALSO TODAY — Mexico captures cartel boss “El Chapo Isidro”, 11 dead "
-    "in Sinaloa · 24 civilians killed in South Sudan",
-    "Bolsonaro “stable” in intensive care · North Korea expands its "
-    "uranium plant · South Korea’s education minister quits over an AI "
-    "exam-cheating scandal",
-]
-fy = 968
-for line in briefs:
-    d.text(((W - text_w(d, line, foot_f)) / 2, fy), line, font=foot_f,
-           fill=GREY)
-    fy += 16
+foot_y = end_c + 16
+bf = sans_bold(14)
+brief_head = "ALSO TODAY  "
+# two hand-balanced lines: the first runs beside the label, the
+# second spans the full width — five briefs, no third line
+brief_a = ("Mexico captures “El Chapo Isidro”, 11 dead · South "
+           "Korea’s education minister quits over AI exam cheating")
+brief_b = ("24 killed in South Sudan raid · Bolsonaro stable in "
+           "intensive care · North Korea expands uranium plant")
+bx = MARGIN + text_w(d, brief_head, bf)
+d.text((MARGIN, foot_y), brief_head, font=bf, fill=RED)
+d.text((bx, foot_y), brief_a, font=bf, fill=INK)
+d.text((MARGIN, foot_y + bf.size + 3), brief_b, font=bf, fill=INK)
 
 img.save("entry.png", format="PNG")
 print("wrote entry.png")
